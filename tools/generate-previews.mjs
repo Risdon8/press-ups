@@ -12,10 +12,10 @@ const run = { turnId: 't', startedAt: 0, predictedMs: 32_000, total: 8, bucket: 
 const states = {
   running: viewOf(run, null, 12_000),
   over: viewOf(run, null, 41_000),
-  done: viewOf(null, { tookMs: 29_000, predictedMs: 32_000, total: 8, reps: 8, today: 48 }, 0),
+  done: viewOf(null, { tookMs: 29_000, predictedMs: 32_000, total: 8, reps: 7, today: 48 }, 0),
 }
 mkdirSync('out', { recursive: true })
 for (const [name, v] of Object.entries(states)) {
-  writeFileSync(`out/${name}.svg`, wrap(rowSvg(v, W), `press-ups bar, ${name}: ${v.title}, ${v.pill}, ${v.right}`))
+  writeFileSync(`out/${name}.svg`, wrap(rowSvg(v, W), `push-ups bar, ${name}: ${v.title}, ${v.pill}, ${v.right}`))
   console.log(name, v.title, v.pill, v.right)
 }

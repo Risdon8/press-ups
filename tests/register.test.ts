@@ -27,35 +27,35 @@ function world(on: Parameters<typeof mock.store>[0]) {
 }
 
 const mount = ($: Parameters<Parameters<typeof test>[1]>[0]) =>
-  $.ui.mount({ plugin: 'press-ups', surface: 'desktop', component: 'AbovePrompt', props: bandProps })
+  $.ui.mount({ plugin: 'push-ups', surface: 'desktop', component: 'AbovePrompt', props: bandProps })
 
 const alt = async (ui: Awaited<ReturnType<typeof mount>>) => (await ui.find({ type: 'Svg' }))?.props.alt
 
-describe('press-ups band', () => {
-  test('shows nothing until a turn starts, then the predicted press-ups', async ($, on) => {
+describe('push-ups band', () => {
+  test('shows nothing until a turn starts, then the predicted push-ups', async ($, on) => {
     mock.clock(on, { now: START })
     mock.store(on, {})
     world(on)
     const ui = await mount($)
     expect(await alt(ui)).toBeUndefined()
     await $.turn.start(turnStart('t1', 'fix the bug'))
-    expect(await alt(ui)).toBe('Press-ups: 0/5, 20s left')
+    expect(await alt(ui)).toBe('Push Ups: 0, 15s left')
   })
 
-  test('a finished turn leaves a done row, an aborted one clears it', async ($, on) => {
+  test('only the reps the wait covered count: a quick or aborted turn clears the row', async ($, on) => {
     mock.clock(on, { now: START })
     mock.store(on, {})
     world(on)
     const ui = await mount($)
     await $.turn.start(turnStart('t2', 'one'))
     await $.turn.complete(turnDone('t2', 12_000))
-    expect(await alt(ui)).toBe('Nice work: ✓ 5, 5 today')
+    expect(await alt(ui)).toBe('Nice work: ✓ 3, 3 today')
     await $.turn.start(turnStart('t3', 'two'))
     await $.turn.complete(turnDone('t3', 3_000, true))
     expect(await alt(ui)).toBeUndefined()
   })
 
-  test('hard mode asks for more, and finished press-ups are logged', async ($, on) => {
+  test('hard mode asks for more, and finished push-ups are logged', async ($, on) => {
     mock.clock(on, { now: START })
     mock.store(on, {})
     world(on)
@@ -63,13 +63,13 @@ describe('press-ups band', () => {
     const ui = await mount($)
     expect((await $.command.run(cmd('mode hard')))?.text).toContain('hard')
     await $.turn.start(turnStart('t4', 'go'))
-    expect(await alt(ui)).toBe('Press-ups: 0/8, 20s left')
+    expect(await alt(ui)).toBe('Push Ups: 0, 15s left')
     await $.turn.complete(turnDone('t4', 15_000))
     await $.turn.start(turnStart('t5', 'again'))
     await $.turn.complete(turnDone('t5', 15_000))
     const text = (await $.command.run(cmd('')))?.text ?? ''
-    expect(text).toContain('this session  16')
-    expect(text).toContain('today         16')
-    expect(text).toContain('all time      16')
+    expect(text).toContain('this session  12')
+    expect(text).toContain('today         12')
+    expect(text).toContain('all time      12')
   })
 })

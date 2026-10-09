@@ -1,7 +1,7 @@
 {
-  "name": "press-ups",
+  "name": "push-ups",
   "version": "0.2.0",
-  "description": "Predicts how long Claude's turn will take and gives you press-ups to do while you wait, in a bar above the prompt. Local only: no model calls, no tokens.",
+  "description": "Predicts how long Claude's turn will take and gives you push-ups to do while you wait, in a bar above the prompt. Local only: no model calls, no tokens.",
   "types": "./types/index.d.ts",
   "author": {
     "name": "Risdon8",

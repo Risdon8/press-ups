@@ -3,6 +3,6 @@ export type Result = { tookMs: number; predictedMs: number; total: number; reps:
 
 declare module 'claude-code' {
   interface PluginState {
-    'press-ups': { run: Run | null; now: number; result: Result | null; session: number }
+    'push-ups': { run: Run | null; now: number; result: Result | null; session: number }
   }
 }

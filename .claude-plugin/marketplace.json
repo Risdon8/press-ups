@@ -1,12 +1,12 @@
 {
-  "name": "press-ups",
+  "name": "push-ups",
   "owner": { "name": "Risdon8", "url": "https://github.com/Risdon8" },
-  "metadata": { "description": "A Claude Code mod that gives you press-ups to do while Claude works." },
+  "metadata": { "description": "A Claude Code mod that gives you push-ups to do while Claude works." },
   "plugins": [
     {
-      "name": "press-ups",
+      "name": "push-ups",
       "source": "./",
-      "description": "Predicts how long Claude's turn will take and gives you press-ups to do while you wait. No model calls, no tokens.",
+      "description": "Predicts how long Claude's turn will take and gives you push-ups to do while you wait. No model calls, no tokens.",
       "version": "0.2.0",
       "category": "mod"
     }

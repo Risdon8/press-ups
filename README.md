@@ -1,14 +1,14 @@
-# press-ups
+# Push Ups
 
-A Claude Code mod for waiting on Claude. It predicts how long the turn will take and gives you press-ups to do in the meantime, in a bar above the prompt.
+A Claude Code mod for waiting on Claude. It predicts how long the turn will take and gives you push-ups to do in the meantime, in a bar above the prompt.
 
 It makes no model calls, so it uses no tokens. Everything runs locally.
 
-![The bar mid-turn: 3 of 8 press-ups, 20s left](docs/running.svg)
+![The bar mid-turn: 3 push-ups so far, 20s left](docs/running.svg)
 
 ## What you see
 
-**While Claude works.** A figure does press-ups, the bar fills as the predicted time passes, and the pill counts how many you should have done by now.
+**While Claude works.** A figure does push-ups, the bar fills as the predicted time passes, and the pill counts how many you should have done by now. There's no big target to dread: the count just grows with the wait.
 
 ![Mid-turn](docs/running.svg)
 
@@ -22,17 +22,19 @@ It makes no model calls, so it uses no tokens. Everything runs locally.
 
 These images are rendered from the mod's own drawing code (`tools/generate-previews.mjs`), so they match the real row. In Claude Code's terminal the same row is drawn in text with a `█░` bar. In the desktop app the figure and the bar animate.
 
-- **Prediction:** the median of your last 10 turns of a similar prompt size (short, medium, long), kept across sessions. Until it has 3 samples it uses 20s, 45s and 90s.
-- **The bar:** a figure doing press-ups, a dithered progress bar, your count (`3/8`) and the time left. Past the prediction it says "Keep going". When the turn ends it shows what you did and your total for today.
-- **Honor system:** a finished turn counts the full set. An interrupted turn counts the share your time covered.
+## How it works
+
+- **Prediction:** the median of your last 10 turns of a similar prompt size (short, medium, long). Until that size has 3 turns it uses the median of all your turns, and before that a default of 15s, 30s or 45s. It never predicts more than 90s.
+- **The bar:** a figure doing push-ups, a dithered progress bar, your count so far and the time left. Past the prediction it says "Keep going". When the turn ends it shows what you did and your total for today.
+- **Honor system:** only the push-ups the wait covered count. A turn that finishes in 5 seconds counts a couple, not a whole set, and an interrupted turn counts the share of time that passed.
 
 ## Install
 
 Needs Claude Code 2.1.287 or later.
 
 ```sh
-claude plugin marketplace add Risdon8/press-ups
-claude plugin install press-ups@press-ups
+claude plugin marketplace add Risdon8/push-ups
+claude plugin install push-ups@push-ups
 ```
 
 Restart Claude Code or run `/reload-plugins`.

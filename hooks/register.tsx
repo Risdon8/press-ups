@@ -3,18 +3,20 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Result, Run } from '../types'
 
-// Press-ups for the wait. The prediction is the median of recent turns of the
+// Push-ups for the wait. The prediction is the median of recent turns of the
 // same size, kept in $.store across sessions. No model is called, so no tokens.
 
-const run = atom({ plugin: 'press-ups', key: 'run' } as const, null)
-const now = atom({ plugin: 'press-ups', key: 'now' } as const, 0)
-const result = atom({ plugin: 'press-ups', key: 'result' } as const, null)
-const session = atom({ plugin: 'press-ups', key: 'session' } as const, 0)
+const run = atom({ plugin: 'push-ups', key: 'run' } as const, null)
+const now = atom({ plugin: 'push-ups', key: 'now' } as const, 0)
+const result = atom({ plugin: 'push-ups', key: 'result' } as const, null)
+const session = atom({ plugin: 'push-ups', key: 'session' } as const, 0)
 
 const HISTORY = 10
 const MIN_SAMPLES = 3
-const DEFAULT_MS = { short: 20_000, medium: 45_000, long: 90_000 }
-// Seconds of predicted wait per press-up, and the most one turn asks for.
+const DEFAULT_MS = { short: 15_000, medium: 30_000, long: 45_000 }
+const MIN_PREDICT_MS = 8_000
+const MAX_PREDICT_MS = 90_000
+// Seconds of predicted wait per push-up, and the most one turn asks for.
 const MODES = {
   easy: { ms: 6_000, max: 20 },
   medium: { ms: 4_000, max: 30 },
@@ -41,7 +43,7 @@ const median = (xs: number[]): number => {
   return sorted[Math.floor(sorted.length / 2)]
 }
 
-const history = async ($: EngineInterface, bucket: Bucket): Promise<number[]> => {
+const history = async ($: EngineInterface, bucket: Bucket | 'all'): Promise<number[]> => {
   const past = await $.store.get(`hist:${bucket}`)
   return Array.isArray(past) ? past.filter((x): x is number => typeof x === 'number') : []
 }
@@ -62,7 +64,7 @@ const dayKey = (ms: number): string => {
 
 const asCount = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) ? x : 0)
 
-/** Adds finished press-ups to today's count and the all-time total; answers today's count. */
+/** Adds finished push-ups to today's count and the all-time total; answers today's count. */
 async function logReps($: EngineInterface, reps: number): Promise<number> {
   const key = dayKey(await $.clock.now())
   const today = asCount(await $.store.get(key)) + reps
@@ -79,7 +81,7 @@ async function statsText($: EngineInterface, sessionCount: number): Promise<stri
   const today = asCount(await $.store.get(dayKey(nowMs)))
   const all = asCount(await $.store.get('all'))
   return [
-    `press-ups, ${mode} mode (one per ${MODES[mode].ms / 1000}s of predicted wait, up to ${MODES[mode].max} a turn)`,
+    `push-ups, ${mode} mode (one per ${MODES[mode].ms / 1000}s of predicted wait, up to ${MODES[mode].max} a turn)`,
     `this session  ${sessionCount}`,
     `today         ${today}`,
     `last 7 days   ${week}`,
@@ -107,16 +109,16 @@ export const viewOf = (r: Run | null, res: Result | null, t: number): View | nul
   if (r === null) return null
   const elapsed = Math.max(0, t - r.startedAt)
   if (elapsed > r.predictedMs) {
-    return { phase: 'over', ratio: 1, reps: r.total, total: r.total, title: 'Keep going', pill: `${r.total}/${r.total}`, right: `+${fmtSec(elapsed - r.predictedMs)}` }
+    return { phase: 'over', ratio: 1, reps: r.total, total: r.total, title: 'Keep going', pill: `${r.total}+`, right: `+${fmtSec(elapsed - r.predictedMs)}` }
   }
   const ratio = elapsed / r.predictedMs
   const reps = Math.min(r.total, Math.floor(ratio * r.total))
-  return { phase: 'running', ratio, reps, total: r.total, title: 'Press-ups', pill: `${reps}/${r.total}`, right: `${fmtSec(r.predictedMs - elapsed)} left` }
+  return { phase: 'running', ratio, reps, total: r.total, title: 'Push Ups', pill: `${reps}`, right: `${fmtSec(r.predictedMs - elapsed)} left` }
 }
 
 // ---------------------------------------------------------------------------
 // Desktop: the whole row is one SVG (the dithered bar of savvy-progress, with a
-// small figure doing press-ups). Terminal: the same row in text.
+// small figure doing push-ups). Terminal: the same row in text.
 
 const H = 24
 const BAR_H = 16
@@ -177,7 +179,7 @@ export const rowSvg = (v: View, W: number): string => {
     }
   }
 
-  // One tick per press-up still to do.
+  // One tick per push-up still to do.
   const ticks: string[] = []
   for (let i = 1; i < v.total; i++) {
     const x = Math.round((BAR_W * i) / v.total)
@@ -243,8 +245,11 @@ export const register: Register = on => {
     stopTicking()
 
     const bucket = bucketOf(e.text)
-    const past = await history($, bucket)
-    const predictedMs = past.length >= MIN_SAMPLES ? median(past) : DEFAULT_MS[bucket]
+    // This prompt size's own turns first, then every turn so far, then a default.
+    const own = await history($, bucket)
+    const every = await history($, 'all')
+    const guess = own.length >= MIN_SAMPLES ? median(own) : every.length >= MIN_SAMPLES ? median(every) : DEFAULT_MS[bucket]
+    const predictedMs = Math.min(MAX_PREDICT_MS, Math.max(MIN_PREDICT_MS, guess))
     const mode = MODES[await readMode($)]
     const total = Math.min(mode.max, Math.max(MIN_PUSHUPS, Math.round(predictedMs / mode.ms)))
     const startedAt = await $.clock.now()
@@ -270,13 +275,13 @@ export const register: Register = on => {
       return r
     }
 
-    // An interrupted turn counts the press-ups its time covered; a finished one, all of them.
-    const reps = e.isAborted
-      ? Math.min(mine.total, Math.floor((Math.max(0, e.durationMs) / mine.predictedMs) * mine.total))
-      : mine.total
+    // Only the push-ups the wait covered count, whether the turn finished early, ran on or was interrupted.
+    const reps = Math.min(mine.total, Math.floor((Math.max(0, e.durationMs) / mine.predictedMs) * mine.total))
     if (!e.isAborted) {
-      const hist = [...(await history($, mine.bucket)), e.durationMs].slice(-HISTORY)
-      await $.store.set(`hist:${mine.bucket}`, hist)
+      for (const key of [mine.bucket, 'all'] as const) {
+        const hist = [...(await history($, key)), e.durationMs].slice(-HISTORY)
+        await $.store.set(`hist:${key}`, hist)
+      }
     }
     if (reps === 0) {
       await update($, result, () => null)
@@ -292,7 +297,7 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'pushups',
-      description: 'Press-up totals for this session, today, the week and all time; mode easy|medium|hard (press-ups)',
+      description: 'Push-up totals for this session, today, the week and all time; mode easy|medium|hard (push-ups)',
       argumentHint: '[mode easy|medium|hard]',
     })
     return next(e)
@@ -301,9 +306,9 @@ export const register: Register = on => {
   on('command.run', { command: 'pushups' }, async ($, e) => {
     const words = String(e.args ?? '').trim().split(/\s+/).filter(Boolean)
     if (words[0] === 'mode') {
-      if (!isMode(words[1])) return { text: `press-ups is in ${await readMode($)} mode; /pushups mode easy, medium or hard changes it` }
+      if (!isMode(words[1])) return { text: `push-ups is in ${await readMode($)} mode; /pushups mode easy, medium or hard changes it` }
       await $.store.set('mode', words[1])
-      return { text: `press-ups set to ${words[1]}: one per ${MODES[words[1]].ms / 1000}s of predicted wait, up to ${MODES[words[1]].max} a turn` }
+      return { text: `push-ups set to ${words[1]}: one per ${MODES[words[1]].ms / 1000}s of predicted wait, up to ${MODES[words[1]].max} a turn` }
     }
     return { text: await statsText($, await read($, session)) }
   })
