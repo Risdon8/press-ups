@@ -7,7 +7,7 @@
       "name": "push-ups",
       "source": "./",
       "description": "Predicts how long Claude's turn will take and gives you push-ups to do while you wait. No model calls, no tokens.",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "mod"
     }
   ]
