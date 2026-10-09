@@ -1,4 +1,4 @@
-# press-ups
+# Press Ups
 
 A Claude Code mod for waiting on Claude. It predicts how long the turn will take and gives you press-ups to do in the meantime, in a bar above the prompt.
 
