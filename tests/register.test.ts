@@ -39,7 +39,7 @@ describe('push-ups band', () => {
     const ui = await mount($)
     expect(await alt(ui)).toBeUndefined()
     await $.turn.start(turnStart('t1', 'fix the bug'))
-    expect(await alt(ui)).toBe('Push Ups: 0, 15s left')
+    expect(await alt(ui)).toBe('Do 4 push-ups: 0/4, 15s left')
   })
 
   test('only the reps the wait covered count: a quick or aborted turn clears the row', async ($, on) => {
@@ -49,7 +49,7 @@ describe('push-ups band', () => {
     const ui = await mount($)
     await $.turn.start(turnStart('t2', 'one'))
     await $.turn.complete(turnDone('t2', 12_000))
-    expect(await alt(ui)).toBe('Nice work: ✓ 3, 3 today')
+    expect(await alt(ui)).toBe('Nice work: ✓ 3/4, 3 today')
     await $.turn.start(turnStart('t3', 'two'))
     await $.turn.complete(turnDone('t3', 3_000, true))
     expect(await alt(ui)).toBeUndefined()
@@ -63,7 +63,7 @@ describe('push-ups band', () => {
     const ui = await mount($)
     expect((await $.command.run(cmd('mode hard')))?.text).toContain('hard')
     await $.turn.start(turnStart('t4', 'go'))
-    expect(await alt(ui)).toBe('Push Ups: 0, 15s left')
+    expect(await alt(ui)).toBe('Do 6 push-ups: 0/6, 15s left')
     await $.turn.complete(turnDone('t4', 15_000))
     await $.turn.start(turnStart('t5', 'again'))
     await $.turn.complete(turnDone('t5', 15_000))

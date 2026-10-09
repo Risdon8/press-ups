@@ -104,16 +104,16 @@ type View = {
 
 export const viewOf = (r: Run | null, res: Result | null, t: number): View | null => {
   if (res !== null) {
-    return { phase: 'done', ratio: 1, reps: res.total, total: res.total, title: 'Nice work', pill: `✓ ${res.reps}`, right: `${res.today.toLocaleString('en-US')} today` }
+    return { phase: 'done', ratio: 1, reps: res.total, total: res.total, title: 'Nice work', pill: res.reps < res.total ? `✓ ${res.reps}/${res.total}` : `✓ ${res.reps}`, right: `${res.today.toLocaleString('en-US')} today` }
   }
   if (r === null) return null
   const elapsed = Math.max(0, t - r.startedAt)
   if (elapsed > r.predictedMs) {
-    return { phase: 'over', ratio: 1, reps: r.total, total: r.total, title: 'Keep going', pill: `${r.total}+`, right: `+${fmtSec(elapsed - r.predictedMs)}` }
+    return { phase: 'over', ratio: 1, reps: r.total, total: r.total, title: 'Keep going', pill: `${r.total}/${r.total}`, right: `+${fmtSec(elapsed - r.predictedMs)}` }
   }
   const ratio = elapsed / r.predictedMs
   const reps = Math.min(r.total, Math.floor(ratio * r.total))
-  return { phase: 'running', ratio, reps, total: r.total, title: 'Push Ups', pill: `${reps}`, right: `${fmtSec(r.predictedMs - elapsed)} left` }
+  return { phase: 'running', ratio, reps, total: r.total, title: `Do ${r.total} push-ups`, pill: `${reps}/${r.total}`, right: `${fmtSec(r.predictedMs - elapsed)} left` }
 }
 
 // ---------------------------------------------------------------------------
