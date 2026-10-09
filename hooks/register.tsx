@@ -100,7 +100,7 @@ type View = {
   right: string
 }
 
-const viewOf = (r: Run | null, res: Result | null, t: number): View | null => {
+export const viewOf = (r: Run | null, res: Result | null, t: number): View | null => {
   if (res !== null) {
     return { phase: 'done', ratio: 1, reps: res.total, total: res.total, title: 'Nice work', pill: `✓ ${res.reps}`, right: `${res.today.toLocaleString('en-US')} today` }
   }
@@ -158,7 +158,7 @@ const figure = (color: string, isMoving: boolean): string => {
 <circle cx="${a.cx}" cy="${a.cy}" r="2.7" fill="${color}">${anim('cx', a.cx, b.cx)}${anim('cy', a.cy, b.cy)}</circle>`
 }
 
-const rowSvg = (v: View, W: number): string => {
+export const rowSvg = (v: View, W: number): string => {
   const color = v.phase === 'done' ? DONE : CLAY
   const isDone = v.phase === 'done'
   const BAR_X = Math.round(FIG_W + 10 + textWidth(v.title, 13) + 12)
