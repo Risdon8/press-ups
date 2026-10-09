@@ -12,9 +12,7 @@ It makes no model calls, so it uses no tokens. Everything runs locally.
 
 ![Mid-turn](docs/running.svg)
 
-**If the turn runs long.** The bar is full and the title changes. The right side counts how far past the prediction you are.
-
-![Past the prediction](docs/over.svg)
+**If the turn runs long.** When the first set's time is up, a new set starts and the bar resets: "Set 2: 15 push-ups". A new set follows every minute for as long as the turn runs, and every finished rep counts.
 
 **When it ends.** The row turns green and shows the set you finished and your total for today. It stays until you press ✕ or send your next prompt.
 
@@ -25,7 +23,7 @@ These images are rendered from the mod's own drawing code (`tools/generate-previ
 ## How it works
 
 - **Prediction:** the median of your last 10 turns of a similar prompt size (short, medium, long). Until that size has 3 turns it uses the median of all your turns, and before that a default of 15s, 30s or 45s. It never predicts more than 90s.
-- **The bar:** a figure doing push-ups, a dithered progress bar, the target up front, your count so far (`3/8`) and the time left. Past the prediction it says "Keep going". When the turn ends it shows what you did and your total for today.
+- **The bar:** a figure doing push-ups, a dithered progress bar, the target up front, your count so far (`3/8`) and the time left. Past the prediction it rolls into a new 60-second set, again and again. When the turn ends it shows what you did and your total for today.
 - **Honor system:** only the push-ups the wait covered count. A turn that finishes in 5 seconds counts a couple, not a whole set, and an interrupted turn counts the share of time that passed.
 
 ## Install
@@ -43,9 +41,12 @@ Restart Claude Code or run `/reload-plugins`.
 
     /pushups                 totals: this session, today, last 7 days, all time
     /pushups mode            show the current mode
-    /pushups mode easy       one per 6s of predicted wait, up to 20 a turn
+    /pushups mode easy       one per 6s of wait, up to 20 a set
     /pushups mode medium     one per 4s, up to 30 (default)
     /pushups mode hard       one per 2.5s, up to 60
+    /pushups mode extreme    one per 1.5s, up to 100, a different variation each set
+
+The limits are per set. In extreme mode each set is a different variation (standard, wide-grip, diamond, pike, spiderman, archer, clap); harder ones ask for fewer reps.
 
 ## Development
 

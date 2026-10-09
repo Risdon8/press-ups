@@ -16,12 +16,26 @@ const MIN_SAMPLES = 3
 const DEFAULT_MS = { short: 15_000, medium: 30_000, long: 45_000 }
 const MIN_PREDICT_MS = 8_000
 const MAX_PREDICT_MS = 90_000
-// Seconds of predicted wait per push-up, and the most one turn asks for.
+// Milliseconds of wait per push-up, and the most one set asks for. The first
+// set covers the predicted wait; once it runs out, a new set starts every SET_MS.
 const MODES = {
   easy: { ms: 6_000, max: 20 },
   medium: { ms: 4_000, max: 30 },
   hard: { ms: 2_500, max: 60 },
+  extreme: { ms: 1_500, max: 100 },
 }
+const SET_MS = 60_000
+// Extreme rotates through these, one per set. `slow` stretches the time each rep
+// takes, so harder variations ask for fewer reps.
+const VARIATIONS = [
+  { name: '', slow: 1 },
+  { name: 'wide-grip ', slow: 1 },
+  { name: 'diamond ', slow: 1.4 },
+  { name: 'pike ', slow: 1.4 },
+  { name: 'spiderman ', slow: 1.8 },
+  { name: 'archer ', slow: 2 },
+  { name: 'clap ', slow: 2 },
+]
 const MIN_PUSHUPS = 2
 const TICK_MS = 1_000
 
@@ -48,7 +62,7 @@ const history = async ($: EngineInterface, bucket: Bucket | 'all'): Promise<numb
   return Array.isArray(past) ? past.filter((x): x is number => typeof x === 'number') : []
 }
 
-const isMode = (x: unknown): x is Mode => x === 'easy' || x === 'medium' || x === 'hard'
+const isMode = (x: unknown): x is Mode => typeof x === 'string' && x in MODES
 
 async function readMode($: EngineInterface): Promise<Mode> {
   const mode = await $.store.get('mode')
@@ -81,7 +95,7 @@ async function statsText($: EngineInterface, sessionCount: number): Promise<stri
   const today = asCount(await $.store.get(dayKey(nowMs)))
   const all = asCount(await $.store.get('all'))
   return [
-    `push-ups, ${mode} mode (one per ${MODES[mode].ms / 1000}s of predicted wait, up to ${MODES[mode].max} a turn)`,
+    `push-ups, ${mode} mode (one per ${MODES[mode].ms / 1000}s of wait, up to ${MODES[mode].max} a set${mode === 'extreme' ? ', varied' : ''}, a new set every minute)`,
     `this session  ${sessionCount}`,
     `today         ${today}`,
     `last 7 days   ${week}`,
@@ -93,7 +107,7 @@ async function statsText($: EngineInterface, sessionCount: number): Promise<stri
 // What the band shows for one moment: running, past the prediction, or done.
 
 type View = {
-  phase: 'running' | 'over' | 'done'
+  phase: 'running' | 'done'
   ratio: number
   reps: number
   total: number
@@ -102,18 +116,40 @@ type View = {
   right: string
 }
 
+type PushSet = { index: number; reps: number; lengthMs: number; name: string }
+
+const setAt = (r: Run, index: number): PushSet => {
+  const v = r.varied ? VARIATIONS[(r.offset + index) % VARIATIONS.length] : { name: '', slow: 1 }
+  const lengthMs = index === 0 ? r.predictedMs : SET_MS
+  const reps = Math.min(r.max, Math.max(MIN_PUSHUPS, Math.round(lengthMs / (r.repMs * v.slow))))
+  return { index, reps, lengthMs, name: v.name }
+}
+
+/** Where `elapsed` falls in the run's sets: the current set, its progress, and the totals so far. */
+export const progress = (r: Run, elapsed: number) => {
+  let start = 0, asked = 0, done = 0
+  for (let index = 0; ; index++) {
+    const set = setAt(r, index)
+    if (elapsed < start + set.lengthMs) {
+      const ratio = Math.max(0, elapsed - start) / set.lengthMs
+      const reps = Math.min(set.reps, Math.floor(ratio * set.reps))
+      return { set, ratio, reps, left: start + set.lengthMs - elapsed, asked: asked + set.reps, done: done + reps }
+    }
+    start += set.lengthMs
+    asked += set.reps
+    done += set.reps
+  }
+}
+
 export const viewOf = (r: Run | null, res: Result | null, t: number): View | null => {
   if (res !== null) {
     return { phase: 'done', ratio: 1, reps: res.total, total: res.total, title: 'Nice work', pill: res.reps < res.total ? `✓ ${res.reps}/${res.total}` : `✓ ${res.reps}`, right: `${res.today.toLocaleString('en-US')} today` }
   }
   if (r === null) return null
-  const elapsed = Math.max(0, t - r.startedAt)
-  if (elapsed > r.predictedMs) {
-    return { phase: 'over', ratio: 1, reps: r.total, total: r.total, title: 'Keep going', pill: `${r.total}/${r.total}`, right: `+${fmtSec(elapsed - r.predictedMs)}` }
-  }
-  const ratio = elapsed / r.predictedMs
-  const reps = Math.min(r.total, Math.floor(ratio * r.total))
-  return { phase: 'running', ratio, reps, total: r.total, title: `Do ${r.total} push-ups`, pill: `${reps}/${r.total}`, right: `${fmtSec(r.predictedMs - elapsed)} left` }
+  const p = progress(r, Math.max(0, t - r.startedAt))
+  const what = `${p.set.name}push-ups`
+  const title = p.set.index === 0 ? `Do ${p.set.reps} ${what}` : `Set ${p.set.index + 1}: ${p.set.reps} ${what}`
+  return { phase: 'running', ratio: p.ratio, reps: p.reps, total: p.set.reps, title, pill: `${p.reps}/${p.set.reps}`, right: `${fmtSec(p.left)} left` }
 }
 
 // ---------------------------------------------------------------------------
@@ -250,14 +286,14 @@ export const register: Register = on => {
     const every = await history($, 'all')
     const guess = own.length >= MIN_SAMPLES ? median(own) : every.length >= MIN_SAMPLES ? median(every) : DEFAULT_MS[bucket]
     const predictedMs = Math.min(MAX_PREDICT_MS, Math.max(MIN_PREDICT_MS, guess))
-    const mode = MODES[await readMode($)]
-    const total = Math.min(mode.max, Math.max(MIN_PUSHUPS, Math.round(predictedMs / mode.ms)))
+    const modeName = await readMode($)
+    const mode = MODES[modeName]
     const startedAt = await $.clock.now()
 
     activeTurn = e.turnId
     await update($, result, () => null)
     await update($, now, () => startedAt)
-    await update($, run, () => ({ turnId: e.turnId, startedAt, predictedMs, total, bucket }))
+    await update($, run, () => ({ turnId: e.turnId, startedAt, predictedMs, bucket, repMs: mode.ms, max: mode.max, varied: modeName === 'extreme', offset: startedAt % VARIATIONS.length }))
     tick($)
     return r
   })
@@ -276,7 +312,7 @@ export const register: Register = on => {
     }
 
     // Only the push-ups the wait covered count, whether the turn finished early, ran on or was interrupted.
-    const reps = Math.min(mine.total, Math.floor((Math.max(0, e.durationMs) / mine.predictedMs) * mine.total))
+    const { done: reps, asked } = progress(mine, Math.max(0, e.durationMs))
     if (!e.isAborted) {
       for (const key of [mine.bucket, 'all'] as const) {
         const hist = [...(await history($, key)), e.durationMs].slice(-HISTORY)
@@ -290,15 +326,15 @@ export const register: Register = on => {
 
     const today = await logReps($, reps)
     await update($, session, n => n + reps)
-    await update($, result, () => ({ tookMs: e.durationMs, predictedMs: mine.predictedMs, total: mine.total, reps, today }))
+    await update($, result, () => ({ tookMs: e.durationMs, predictedMs: mine.predictedMs, total: asked, reps, today }))
     return r
   })
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'pushups',
-      description: 'Push-up totals for this session, today, the week and all time; mode easy|medium|hard (push-ups)',
-      argumentHint: '[mode easy|medium|hard]',
+      description: 'Push-up totals for this session, today, the week and all time; mode easy|medium|hard|extreme (push-ups)',
+      argumentHint: '[mode easy|medium|hard|extreme]',
     })
     return next(e)
   })
@@ -306,9 +342,9 @@ export const register: Register = on => {
   on('command.run', { command: 'pushups' }, async ($, e) => {
     const words = String(e.args ?? '').trim().split(/\s+/).filter(Boolean)
     if (words[0] === 'mode') {
-      if (!isMode(words[1])) return { text: `push-ups is in ${await readMode($)} mode; /pushups mode easy, medium or hard changes it` }
+      if (!isMode(words[1])) return { text: `push-ups is in ${await readMode($)} mode; /pushups mode easy, medium, hard or extreme changes it` }
       await $.store.set('mode', words[1])
-      return { text: `push-ups set to ${words[1]}: one per ${MODES[words[1]].ms / 1000}s of predicted wait, up to ${MODES[words[1]].max} a turn` }
+      return { text: `push-ups set to ${words[1]}: one per ${MODES[words[1]].ms / 1000}s of wait, up to ${MODES[words[1]].max} a set${words[1] === 'extreme' ? ', with a different variation each set' : ''}` }
     }
     return { text: await statsText($, await read($, session)) }
   })
